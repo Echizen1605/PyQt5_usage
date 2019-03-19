@@ -1,5 +1,6 @@
 # coding:utf-8
 import sys
+import os
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -20,7 +21,9 @@ from PyQt5.QtWidgets import QStatusBar, \
 							QColorDialog,\
 							QFileDialog,\
 							QAction,\
-							QStyle
+							QStyle,\
+							QLabel,\
+							QCheckBox
 
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QFont
@@ -43,6 +46,7 @@ class Config(QWidget):
 		lineconfig_group = QtWidgets.QGroupBox(u"线条风格配置")
 		axisconfig_group = QtWidgets.QGroupBox(u"坐标轴风格配置")
 		lineshow_group = QtWidgets.QGroupBox(u"线条风格预览")
+		# file_group = QtWidgets.QGroupBox(u"从文件绘制")
 		result_group = QtWidgets.QGroupBox(u"结果展示")
 
 		# 当前绘图结果
@@ -88,15 +92,15 @@ class Config(QWidget):
 
 		# 线条风格
 		self.linestyle = QComboBox()
-		line_list = ["-", "--", "-.", ":"]
-		for each in line_list:
+		self.line_list = ["-", "--", "-.", ":"]
+		for each in self.line_list:
 			self.linestyle.addItem(each)
 
 		# 标记风格
 		self.markerstyle = QComboBox()
-		marker_list = [".", ",", "o", "v", "^", "<", ">", "1", "2", "3", "4"
+		self.marker_list = [".", ",", "o", "v", "^", "<", ">", "1", "2", "3", "4"
 		"s", "p", "*", "h", "H", "+", "x", "D", "d", "|", "_"]
-		for each in marker_list:
+		for each in self.marker_list:
 			self.markerstyle.addItem(each)
 
 		# 设置线条标签名称
@@ -206,6 +210,7 @@ class Config(QWidget):
 		# 按钮一：显示最终结果
 		# 按钮二：添加新的线条
 		# 按钮三：删除最近一条线条
+		# 按钮四：保存图像
 		self.showresult = QPushButton(u'刷新视图')
 		self.showresult.setToolTip(u'刷新视图！')
 		self.showresult.clicked.connect(self.resultShow)
@@ -234,12 +239,59 @@ class Config(QWidget):
 		center_layout.addWidget(self.removeline)
 		center_layout.addWidget(self.savefig)
 
+		# 第三层按钮定义
+		file_layout = QHBoxLayout()
+		left_layout = QHBoxLayout()
+		leftl_layout = QFormLayout()
+		self.x_file_path = QLineEdit()
+		self.x_file_path.setFixedHeight(20)
+		leftl_layout.addRow(u"X轴:", self.x_file_path)
+		leftr_layout = QVBoxLayout()
+		x_file_option = QPushButton("选择")
+		x_file_option.setFixedWidth(35)
+		x_file_option.setFixedHeight(20)
+		x_file_option.clicked.connect(self.xFile)
+		leftr_layout.addWidget(x_file_option)
+		left_layout.addLayout(leftl_layout)
+		left_layout.addLayout(leftr_layout)
+		
+		right_layout = QHBoxLayout()
+		rightl_layout = QFormLayout()
+		self.y_file_path = QLineEdit()
+		self.y_file_path.setFixedHeight(20)
+		rightl_layout.addRow(u"Y轴:", self.y_file_path)
+		rightr_layout = QVBoxLayout()
+		y_file_option = QPushButton("选择")
+		y_file_option.setFixedWidth(35)
+		y_file_option.setFixedHeight(20)
+		y_file_option.clicked.connect(self.yFile)
+		rightr_layout.addWidget(y_file_option)
+		right_layout.addLayout(rightl_layout)
+		right_layout.addLayout(rightr_layout)
+
+		self.selection = QCheckBox(u"自适应")
+
+		okbt = QPushButton(u"确定")
+		okbt.clicked.connect(self.xyPlot)
+
+		file_layout.addLayout(left_layout)
+		file_layout.addLayout(right_layout)
+		file_layout.addWidget(self.selection)
+		file_layout.addWidget(okbt)
+
+		# 设置布局中控件的间距
+		left_layout.setSpacing(3)
+		right_layout.setSpacing(3)
+		file_layout.setSpacing(20)
+
+
 		# 下层状态栏
 		bottom_layout = QVBoxLayout()
 		bottom_layout.addWidget(self.statusBar)
 
 		config_outer_layout.addItem(config_inner_layout)
 		config_outer_layout.addItem(center_layout)
+		config_outer_layout.addItem(file_layout)
 		config_outer_layout.addItem(bottom_layout)
 
 		config_group.setLayout(config_outer_layout)
@@ -354,6 +406,7 @@ class Config(QWidget):
 		ax.set_ylabel(self.y_text)
 		ax.set_xlim(self.min_x, self.max_y)
 		ax.set_ylim(self.min_y, self.max_y)
+		self.fig = fig
 		canvas = FigureCanvas(fig)
 		self.result.setCentralWidget(canvas)
 
@@ -392,13 +445,74 @@ class Config(QWidget):
 		except Exception as ex:
 			pass
 
+	def xFile(self):
+		filename, filetype = QFileDialog.getOpenFileName(self, "选取文件", "./",\
+			"Text Files (*.txt);;Python Files (*.npy)")
+		if filename != "":
+			self.x_file_path.setText(filename)
+
+
+	def yFile(self):
+		filename, filetype = QFileDialog.getOpenFileName(self, "选取文件", "./",\
+			"Text Files (*.txt);;Python Files (*.npy)")
+		if filename != "":
+			self.y_file_path.setText(filename)
+
+	def xyPlot(self):
+		fig = plt.figure()
+		ax = fig.add_subplot(1,1,1)
+		xfile = self.x_file_path.text()
+		yfile = self.y_file_path.text()
+		x_arr = None
+		y_arr = None
+		if xfile and yfile:
+			if not os.path.exists(xfile) or not os.path.exists(yfile):
+				return
+			xtype = os.path.splitext(xfile)[1]
+			ytype = os.path.splitext(yfile)[1]
+			if xtype != ytype:
+				return
+			if xtype.lower() == '.txt':
+				try:
+					with open(xfile) as fp:
+						xdata = [[each.strip() for each in line.split(',')] for line in fp.readlines()]
+					with open(yfile) as fp:
+						ydata = [[each.strip() for each in line.split(',')] for line in fp.readlines()]
+					x_arr = np.array(xdata, dtype=np.float)
+					y_arr = np.array(ydata, dtype=np.float)
+					if x_arr.shape != y_arr.shape:
+						return
+				except Exception as ex:
+					pass
+			elif xtype.lower() == '.npy':
+				try:
+					x_arr = np.load(xfile)
+					y_arr = np.load(yfile)
+					if x_arr.shape != y_arr.shape:
+						return
+				except Exception as ex:
+					pass
+		
+			if self.selection.checkState():
+				rd = np.random.RandomState(1234)
+				color_list = rd.rand(x_arr.shape[0], 3)
+				for index in range(x_arr.shape[0]):
+					ax.plot(x_arr[index], y_arr[index], color=color_list[index],\
+						ls=rd.choice(self.line_list), marker=rd.choice(self.marker_list))
+				self.fig = fig
+				canvas = FigureCanvas(fig)
+				self.result.setCentralWidget(canvas)
+		else:
+			pass
 
 	def saveFig(self):
 		dialog = QFileDialog()
 		filename, filetype = dialog.getSaveFileName(self, "图像保存", "./result.png"\
                   ,"All Files (*);;JPEG Files (*.jpg);;PNG Files (*.png);;SVG Files (*.svg)")
+		self.fig.set_size_inches(8,6)
 		if filename!="" and self.fig:
-			plt.savefig(filename)
+			plt.savefig(filename, dpi=80)
+			self.resultShow()
 
 
 	def eventFilter(self, obj, event):
@@ -441,9 +555,3 @@ if __name__ == "__main__":
     crawl = Config()
     crawl.show()
     sys.exit(app.exec_())
-
-
-
-
-
-
