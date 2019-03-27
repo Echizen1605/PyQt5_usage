@@ -31,7 +31,6 @@ from PyQt5.QtGui import QFont
 
 # pyqt结合matplotlib的中介
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
 
 # matplotlib中文问题
 matplotlib.use('qt4agg')
@@ -46,7 +45,6 @@ class Config(QWidget):
 		lineconfig_group = QtWidgets.QGroupBox(u"线条风格配置")
 		axisconfig_group = QtWidgets.QGroupBox(u"坐标轴风格配置")
 		lineshow_group = QtWidgets.QGroupBox(u"线条风格预览")
-		# file_group = QtWidgets.QGroupBox(u"从文件绘制")
 		result_group = QtWidgets.QGroupBox(u"结果展示")
 
 		# 当前绘图结果
@@ -87,7 +85,7 @@ class Config(QWidget):
 
 		# 编辑公式
 		self.math = QLineEdit()
-		self.math.setPlaceholderText(u'输入线条公式')
+		self.math.setPlaceholderText(u'y=x**2')
 		self.math.setClearButtonEnabled(True)
 
 		# 线条风格
@@ -125,12 +123,12 @@ class Config(QWidget):
 
 		# 横坐标轴范围
 		self.x_scale = QLineEdit()
-		self.x_scale.setPlaceholderText(u'输入横坐标轴最小和最大范围，以逗号分隔，如：0,1')
+		self.x_scale.setPlaceholderText(u'0,1')
 		self.x_scale.setClearButtonEnabled(True)
 
 		# 纵坐标轴范围
 		self.y_scale = QLineEdit()
-		self.y_scale.setPlaceholderText(u'输入纵坐标轴最小和最大范围，以逗号分隔，如：0,1')
+		self.y_scale.setPlaceholderText(u'0,1')
 		self.y_scale.setClearButtonEnabled(True)
 
 		# 横坐标轴标签名称
@@ -143,14 +141,14 @@ class Config(QWidget):
 		self.y_label.setPlaceholderText(u'precision @ 256 bins')
 		self.y_label.setClearButtonEnabled(True)
 
-		# 横坐标刻度
+		# 横坐标刻度数量
 		self.x_ticks = QLineEdit()
-		self.x_ticks.setPlaceholderText(u'输入刻度名称，以逗号分隔，如0,0.5,1.0')
+		self.x_ticks.setPlaceholderText(u'100')
 		self.x_ticks.setClearButtonEnabled(True)
 
-		# 纵坐标刻度
+		# 纵坐标刻度数量
 		self.y_ticks = QLineEdit()
-		self.y_ticks.setPlaceholderText(u'输入刻度名称，以逗号分隔，如0,0.5,1.0')
+		self.y_ticks.setPlaceholderText(u'100')
 		self.y_ticks.setClearButtonEnabled(True)
 
 		# 线条风格预览按钮
@@ -192,8 +190,8 @@ class Config(QWidget):
 		tick_layout.addRow(u'纵坐标轴范围', self.y_scale)
 		tick_layout.addRow(u'横坐标轴标签名称', self.x_label)
 		tick_layout.addRow(u'纵坐标轴标签名称', self.y_label)
-		tick_layout.addRow(u'横坐标刻度', self.x_ticks)
-		tick_layout.addRow(u'纵坐标刻度', self.y_ticks)
+		tick_layout.addRow(u'横坐标刻度数量', self.x_ticks)
+		tick_layout.addRow(u'纵坐标刻度数量', self.y_ticks)
 		axisconfig_group.setLayout(tick_layout)
 
 		# 预览布局
@@ -317,12 +315,21 @@ class Config(QWidget):
 		col = QColorDialog.getColor()
 		if col.isValid():
 			self.lc = col.name()
+			self.showLine()
 
 
 	def showLine(self):
 		# self.view_face.setFixedWidth(230)
 		# self.view_face.setSizePolicy(self.view_face.sizeHint())
 		# 获取参数
+		try:
+			x_scale_text = self.x_scale.text()
+			if x_scale_text == "":
+				x_scale_text = self.x_scale.placeholderText()
+			self.min_x, self.max_x = [float(k.strip()) for k in x_scale_text.strip().split(',')]
+		except Exception as ex:
+			pass
+
 		self.formula = self.math.text()
 		if self.formula == "":
 			self.formula = self.math.placeholderText()
@@ -333,7 +340,7 @@ class Config(QWidget):
 			self.lt = self.label.placeholderText()
 		self.md = self.markDensity.value()
 
-		x0 = np.linspace(0, 1, 100)
+		x0 = np.linspace(self.min_x, self.max_x, 100)
 		try:
 			formula_str = self.formula.split('=')[1]
 			y0 = [eval(formula_str) for x in x0]
@@ -342,7 +349,9 @@ class Config(QWidget):
 		plt.cla()
 		fig = plt.figure()
 		ax = fig.add_subplot(1,1,1)
+		ax.set_xlim(self.min_x, self.max_x)
 		ax.plot(x0, y0, color=self.lc, ls=self.ls, marker=self.mark, label=self.lt, markevery=self.md)
+		plt.subplots_adjust(left=0.17, bottom=0.17, right=0.9, top=0.9, hspace=0.1, wspace=0.3)
 		ax.legend(loc='best')
 		self.fig = fig
 		canvas = FigureCanvas(fig)
@@ -377,8 +386,8 @@ class Config(QWidget):
 			x_tick_str = self.x_ticks.text()
 			if x_tick_str == "":
 				x_tick_str = self.x_ticks.placeholderText()
-			self.x_label_list = [k.strip() for k in x_tick_str.strip().split(',')]
-			self.x_tick_list = np.linspace(self.min_x, self.max_x, len(self.x_label_list))
+			self.x_tick_list = np.linspace(self.min_x, self.max_x, int(x_tick_str.strip()))
+			self.x_label_list = self.x_tick_list
 		except Exception as ex:
 			pass
 
@@ -386,8 +395,8 @@ class Config(QWidget):
 			y_tick_str = self.y_ticks.text()
 			if y_tick_str == "":
 				y_tick_str = self.y_ticks.placeholderText()
-			self.y_label_list = [k.strip() for k in y_tick_str.strip().split(',')]
-			self.y_tick_list = np.linspace(self.min_y, self.max_y, len(self.y_label_list))
+			self.y_tick_list = np.linspace(self.min_y, self.max_y, int(y_tick_str.strip()))
+			self.y_label_list = self.y_tick_list
 		except Exception as ex:
 			pass
 
@@ -404,7 +413,7 @@ class Config(QWidget):
 		ax.set_yticklabels(self.y_label_list)
 		ax.set_xlabel(self.x_text)
 		ax.set_ylabel(self.y_text)
-		ax.set_xlim(self.min_x, self.max_y)
+		ax.set_xlim(self.min_x, self.max_x)
 		ax.set_ylim(self.min_y, self.max_y)
 		self.fig = fig
 		canvas = FigureCanvas(fig)
@@ -414,10 +423,10 @@ class Config(QWidget):
 	def addLine(self):
 		try:
 			x = 1
-			temp = eval(self.math.text().split('=')[1])
 			math_txt = self.math.text()
 			if math_txt == "":
 				math_txt = self.math.placeholderText()
+			temp = eval(math_txt.split('=')[1])
 			self.formula_list.append(math_txt)
 			self.ls_list.append(self.linestyle.currentText())
 			self.mark_list.append(self.markerstyle.currentText())
